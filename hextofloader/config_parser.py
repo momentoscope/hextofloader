@@ -17,7 +17,7 @@ class configParser():
 
     def config_parser(self, config):
         """
-        to write here
+        Parser for the config.yaml file.
         """
         with open(config) as file:
             config = yaml.load_all(file, Loader=yaml.FullLoader)
@@ -29,13 +29,10 @@ class configParser():
                 if 'paths' in doc.keys():
                     self.paths = doc['paths']
 
-            if not {'source', 'ubid_offset', 'daq'}.issubset(
-                                                self.general.keys()):
-                raise ValueError('One of the values from source, ubid_offset or daq is missing. \
-                                    These are necessary.')
+            if not {'source'}.issubset(self.general.keys()):
+                raise ValueError('Source key is missing. Please enter flash or lab')
+            
             self.source = self.general['source']
-            self.UBID_OFFSET = self.general['ubid_offset']
-            self.DAQ = self.general['daq']
 
             # Prases to locate the raw beamtime directory from config file
             if self.paths:
@@ -44,26 +41,38 @@ class configParser():
                 if 'data_parquet_dir' in self.paths:
                     self.DATA_PARQUET_DIR = Path(self.paths[
                                                     'data_parquet_dir'])
-            else:
-                if {'beamtime_id', 'year'}.issubset(self.general.keys()):
-                    raise ValueError('The beamtime_id and year or data_raw_dir\
+            
+            if self.source == 'flash':
+                self.flash()
+    
+    def flash(self):
+        if not {'ubid_offset', 'daq'}.issubset(self.general.keys()):
+            raise ValueError('One of the values from ubid_offset or daq is missing. \
+                        These are necessary.')
+                
+        self.UBID_OFFSET = self.general['ubid_offset']
+        self.DAQ = self.general['daq']
+
+        if not self.paths:
+            if {'beamtime_id', 'year'}.issubset(self.general.keys()):
+                raise ValueError('The beamtime_id and year or data_raw_dir\
                                                                  is required.')
 
-                beamtime_id = self.general['beamtime_id']
-                year = self.general['year']
-                beamtime_dir = Path(
-                        f'/asap3/flash/gpfs/pg2/{year}/data/{beamtime_id}/')
+            beamtime_id = self.general['beamtime_id']
+            year = self.general['year']
+            beamtime_dir = Path(
+                    f'/asap3/flash/gpfs/pg2/{year}/data/{beamtime_id}/')
 
-                # Folder naming convention till end of October
-                self.DATA_RAW_DIR = beamtime_dir.joinpath('raw/hdf/express')
-                # Use new convention if express doesn't exist
-                if not self.DATA_RAW_DIR.exists():
-                    self.DATA_RAW_DIR = beamtime_dir.joinpath(
-                        f'raw/hdf/{self.DAQ.upper()}')
+            # Folder naming convention till end of October
+            self.DATA_RAW_DIR = beamtime_dir.joinpath('raw/hdf/express')
+            # Use new convention if express doesn't exist
+            if not self.DATA_RAW_DIR.exists():
+                self.DATA_RAW_DIR = beamtime_dir.joinpath(
+                    f'raw/hdf/{self.DAQ.upper()}')
 
-                if self.DATA_PARQUET_DIR is None:
-                    parquet_path = 'processed/parquet'
-                    self.DATA_PARQUET_DIR = beamtime_dir.joinpath(parquet_path)
+            if self.DATA_PARQUET_DIR is None:
+                parquet_path = 'processed/parquet'
+                self.DATA_PARQUET_DIR = beamtime_dir.joinpath(parquet_path)
 
-                if not self.DATA_PARQUET_DIR.exists():
-                    os.mkdir(self.DATA_PARQUET_DIR)
+            if not self.DATA_PARQUET_DIR.exists():
+                os.mkdir(self.DATA_PARQUET_DIR)
