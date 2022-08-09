@@ -17,7 +17,7 @@ import h5py
 from hextofloader.config_parser import configParser
 
 
-class FlashLoader(configParser):
+class flash(configParser):
     """
     The class generates multiindexed multidimensional pandas dataframes
     from the new FLASH dataformat resolved by both macro and microbunches

@@ -41,6 +41,8 @@ class configParser():
                 if 'data_parquet_dir' in self.paths:
                     self.DATA_PARQUET_DIR = Path(self.paths[
                                                     'data_parquet_dir'])
+                    if not self.DATA_PARQUET_DIR.exists():
+                        os.mkdir(self.DATA_PARQUET_DIR)
             
             if self.source == 'flash':
                 self.flash()

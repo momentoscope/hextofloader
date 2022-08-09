@@ -1,25 +1,19 @@
 """
-Wrapper module that preprocesses data from any defined source.
+Interface class for preprocessing data from any defined source.
 Currently, this works for Flash and Lab data sources.
 """
-
 import yaml
-from hextofloader.data_sources.flash import FlashLoader
-from hextofloader.data_sources.lab import LabLoader
+from hextofloader.data_sources.flash import flash
+from hextofloader.data_sources.lab import lab
 
-
-class dataframeReader(FlashLoader, LabLoader):
+class readData():
     """
     The class inherits attributes from the FlashLoader and LabLoader classes
     and calls them depending on predefined source value in config file.
     The dataframe is stored in self.dd.
     """
 
-    def __init__(self, config, runNumber=None, fileNames=None):
-        if (runNumber or fileNames) is None:
-            raise ValueError("Must provide a run, list of runs, or fileNames!")
-        if runNumber and fileNames:
-            raise ValueError("Only provide either run number(s) or fileNames")
+    def __init__(self, config, runNumbers=None, fileNames=None):
         # Parse the source value to choose the necessary class
         with open(config) as file:
             config_ = yaml.load_all(file, Loader=yaml.FullLoader)
@@ -27,15 +21,21 @@ class dataframeReader(FlashLoader, LabLoader):
                 if "general" in doc.keys():
                     self.source = doc["general"]["source"]
 
-        if not self.source:
-            raise ValueError("Please define data source in config file.")
+        sourceClassName=globals()[self.source]
 
-        if self.source == "flash":
-            FlashLoader.__init__(self, runNumber, config)
+        if self.source == 'lab':
+            if fileNames is None:
+                raise ValueError("Must provide a file name or a list of file names")
+            if runNumbers:
+                raise ValueError("runNumber is not valid for Lab data. Please provide fileNames.")
+        
+        if self.source == 'flash':
+            if runNumbers is None:
+                raise ValueError("Must provide a run or a list of runs")
+            if fileNames:
+                raise ValueError("fileNames not valid for Flash data. Please provide runNumber.")
+        data = [data for data in [runNumbers, fileNames] if data]
+        sourceClass=sourceClassName(data, config)
+        sourceClass.readData()
 
-        if self.source == "lab":
-            LabLoader.__init__(self, fileNames, config)
-
-        # data = [data for data in [runNumber, fileNames] if data]
-
-        self.readData()
+        self.dd = sourceClass.dd
