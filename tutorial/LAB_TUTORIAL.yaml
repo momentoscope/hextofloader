@@ -1,0 +1,34 @@
+general:
+  source: lab
+channels:
+  delayStage:
+    format: slow
+    group_name: "/Actuators/hextof/scanning/delaystage/Time"
+  exposure:
+    format: slow
+    group_name: "/SlowData/exposure_time"
+  dldTime:
+    format: electron
+    group_name: "/DLD/DLD/dldTime"
+  times:
+    format: electron
+    group_name: "/DLD/DLD/times"
+  xPos:
+    format: electron
+    group_name: "/DLD/DLD/xPos"
+  yPos:
+    format: electron
+    group_name: "/DLD/DLD/yPos"
+  Ext_VURead:
+    format: slow
+    group_name: "/SlowData/hextof/logic/kmic1/Ext_VURead"
+  Sample_VURead:
+    format: slow
+    group_name: "/SlowData/hextof/logic/kmic1/Sample_VURead"
+  TOF_VURead:
+    format: slow
+    group_name: "/SlowData/hextof/logic/kmic1/TOF_VURead"
+---
+paths:
+  data_raw_dir: /asap3/fs-flash-o/gpfs/hextof/2022/data/11015726/raw/
+  data_parquet_dir: /asap3/fs-flash-o/gpfs/hextof/2022/data/11015726/processed/parquet/

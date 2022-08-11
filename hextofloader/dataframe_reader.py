@@ -13,7 +13,7 @@ class readData():
     The dataframe is stored in self.dd.
     """
 
-    def __init__(self, config, runNumbers=None, fileNames=None):
+    def __init__(self, config, fileNames=None):
         # Parse the source value to choose the necessary class
         with open(config) as file:
             config_ = yaml.load_all(file, Loader=yaml.FullLoader)
@@ -23,19 +23,10 @@ class readData():
 
         sourceClassName=globals()[self.source]
 
-        if self.source == 'lab':
-            if fileNames is None:
-                raise ValueError("Must provide a file name or a list of file names")
-            if runNumbers:
-                raise ValueError("runNumber is not valid for Lab data. Please provide fileNames.")
-        
-        if self.source == 'flash':
-            if runNumbers is None:
-                raise ValueError("Must provide a run or a list of runs")
-            if fileNames:
-                raise ValueError("fileNames not valid for Flash data. Please provide runNumber.")
-        data = [data for data in [runNumbers, fileNames] if data]
-        sourceClass=sourceClassName(data, config)
+        sourceClass=sourceClassName(fileNames, config)
         sourceClass.readData()
 
         self.dd = sourceClass.dd
+
+        self.sourceClass = sourceClass # debugging purposes
+        
