@@ -3,6 +3,7 @@ Interface class for preprocessing data from any defined source.
 Currently, this works for Flash and Lab data sources.
 """
 import yaml
+
 from hextofloader.data_sources.flash import flash
 from hextofloader.data_sources.lab import lab
 
@@ -29,4 +30,3 @@ class readData():
         self.dd = sourceClass.dd
 
         self.sourceClass = sourceClass # debugging purposes
-        

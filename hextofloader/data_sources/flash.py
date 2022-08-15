@@ -3,32 +3,38 @@ This module implements the flash data preprocessing class.
 The raw hdf5 data is saved into parquet files and loaded as a pandas dataframe.
 The class attributes are inherited by dataframeReader - a wrapper class.
 """
-
 import os
-from typing import cast
-from pathlib import Path
 from functools import reduce
-from multiprocessing import Pool, cpu_count
 from itertools import compress
-import numpy as np
-from pandas import Series, DataFrame, MultiIndex
+from multiprocessing import cpu_count
+from multiprocessing import Pool
+from pathlib import Path
+from typing import cast
+
 import dask.dataframe as dd
 import h5py
-from hextofloader.config_parser import configParser
+import numpy as np
+from pandas import DataFrame
+from pandas import MultiIndex
+from pandas import Series
+
+from hextofloader.data_sources.source_reader import sourceReader
 
 
-class flash(configParser):
+class flash(sourceReader):
     """
     The class generates multiindexed multidimensional pandas dataframes
     from the new FLASH dataformat resolved by both macro and microbunches
     alongside electrons.
     """
 
-    def __init__(self, runNumber, config) -> None:
-        super().__init__(config)
+    def __init__(self, fileNames, config) -> None:
+        super().__init__(fileNames, config)
+        self.fileNames = fileNames
+        self.channels = self.availableChannels
         # Set all channels, exluding pulseId as default
         self.channels = self.availableChannels
-        self.runNumber = runNumber
+        self.fileNames = fileNames
         self.index_per_electron = None
         self.index_per_pulse = None
         self.prq_names = []
@@ -91,8 +97,9 @@ class flash(configParser):
         # microbunches as values
         macrobunches = (
             Series(
-                (np_array[i] for i in train_id.index), name="pulseId", index=train_id
-            ) - self.UBID_OFFSET
+                (np_array[i] for i in train_id.index), name="pulseId", index=train_id,
+            )
+            - self.UBID_OFFSET
         )
 
         # Explode dataframe to get all microbunch vales per macrobunch,
@@ -101,7 +108,7 @@ class flash(configParser):
 
         # Create temporary index values
         index_temp = MultiIndex.from_arrays(
-            (microbunches.index, microbunches.values), names=["trainId", "pulseId"]
+            (microbunches.index, microbunches.values), names=["trainId", "pulseId"],
         )
 
         # Calculate the electron counts per pulseId
@@ -110,7 +117,7 @@ class flash(configParser):
 
         # Series object for indexing with electrons
         electrons = Series(
-            [np.arange(electron_counts[i]) for i in range(electron_counts.size)]
+            [np.arange(electron_counts[i]) for i in range(electron_counts.size)],
         ).explode()
 
         # Create a pandas multiindex using the exploded datasets
@@ -126,11 +133,11 @@ class flash(configParser):
         # Create a pandas multiindex, useful to compare electron and
         # pulse resolved dataframes
         self.index_per_pulse = MultiIndex.from_product(
-            (train_id, np.arange(0, np_array.shape[1])), names=["trainId", "pulseId"]
+            (train_id, np.arange(0, np_array.shape[1])), names=["trainId", "pulseId"],
         )
 
     def createNumpyArrayPerChannel(
-        self, h5_file: h5py.File, channel: str
+        self, h5_file: h5py.File, channel: str,
     ) -> tuple[Series, np.ndarray]:
         """Returns a numpy Array for a given channel name for a given file"""
         # Get the data from the necessary h5 file and channel
@@ -148,18 +155,18 @@ class flash(configParser):
         # to choose correct dimension for necessary channel
         if "axis" in channel_dict:
             np_array = np.take(
-                np_array, channel_dict["slice"], axis=channel_dict["axis"]
+                np_array, channel_dict["slice"], axis=channel_dict["axis"],
             )
         return train_id, np_array
 
     def createDataframePerChannel(
-        self, h5_file: h5py.File, channel: str
+        self, h5_file: h5py.File, channel: str,
     ) -> Series | DataFrame:
         """Returns a pandas DataFrame for a given channel name for
         a given file. The Dataframe contains the MultiIndex and returns
         depending on the channel's format"""
         [train_id, np_array] = self.createNumpyArrayPerChannel(
-            h5_file, channel
+            h5_file, channel,
         )  # numpy Array created
         channel_dict = self.all_channels[channel]  # channel parameters
 
@@ -167,7 +174,7 @@ class flash(configParser):
         if np_array.size == 0:
             np_array = np.full_like(train_id, np.nan, dtype=np.double)
             return Series(
-                (np_array[i] for i in train_id.index), name=channel, index=train_id
+                (np_array[i] for i in train_id.index), name=channel, index=train_id,
             )
 
         # Electron resolved data is treated here
@@ -239,11 +246,11 @@ class flash(configParser):
             raise ValueError(
                 channel
                 + "has an undefined format. Available formats are \
-                per_pulse, per_electron and per_train"
+                per_pulse, per_electron and per_train",
             )
 
     def concatenateChannels(
-        self, h5_file: h5py.File, format_: str = ""
+        self, h5_file: h5py.File, format_: str = "",
     ) -> Series | DataFrame:
         """Returns a concatenated pandas DataFrame for either all pulse,
         train or electron resolved channels."""
@@ -269,7 +276,7 @@ class flash(configParser):
                 self.createDataframePerChannel(h5_file, each) for each in channels
             )
             return reduce(
-                lambda left, right: left.join(right, how="outer"), data_frames
+                lambda left, right: left.join(right, how="outer"), data_frames,
             )
         else:
             return DataFrame()
@@ -286,7 +293,7 @@ class flash(configParser):
             return self.concatenateChannels(h5_file)
 
     def runFilesNames(
-        self, run_number: int, daq: str, raw_data_dir: Path
+        self, run_number: int, daq: str, raw_data_dir: Path,
     ) -> list[Path]:
         """Returns all filenames of given run located in directory
         for the given daq."""
@@ -302,7 +309,7 @@ class flash(configParser):
 
         return sorted(
             Path(raw_data_dir).glob(
-                f"{stream_name_prefixes[daq]}_run{run_number}_*.h5"
+                f"{stream_name_prefixes[daq]}_run{run_number}_*.h5",
             ),
             key=lambda filename: str(filename).split("_")[-1],
         )
@@ -327,7 +334,7 @@ class flash(configParser):
         channels = self.channelsPerPulse + self.channelsPerTrain
         for i in range(len(self.dataframes)):
             self.dataframes[i][channels] = self.dataframes[i][channels].fillna(
-                method="ffill"
+                method="ffill",
             )
 
         # This loop forward fills between the consective files.
@@ -347,17 +354,17 @@ class flash(configParser):
                 values = self.dataframes[i - 1][channels].tail(1).values[0]
                 # Fill all NaNs by those values
                 subset[channels_to_overwrite] = subset[channels_to_overwrite].fillna(
-                    dict(zip(channels_to_overwrite, values))
+                    dict(zip(channels_to_overwrite, values)),
                 )
                 # Overwrite the dataframes with filled dataframes
                 self.dataframes[i][channels] = subset
 
     def readData(
-        self, runs: list[int] | int = 0, ignore_missing_runs: bool = False
+        self, runs: list[int] | int = 0, ignore_missing_runs: bool = False,
     ) -> None:
         """Read express data from DAQ, generating a parquet in between."""
         if not runs:
-            runs = self.runNumber
+            runs = self.fileNames
 
         # create a per_file directory
         temp_parquet_dir = self.DATA_PARQUET_DIR.joinpath("per_file")
@@ -394,8 +401,8 @@ class flash(configParser):
                 missing_prq_names.append(self.prq_names[i])
 
         print(
-            (f"Reading {runs_str}: {len(missing_files)} new files of "
-             f"{len(all_files)} total.")
+                f"Reading {runs_str}: {len(missing_files)} new files of "
+                f"{len(all_files)} total.",
         )
         self.failed_strings = []
 
@@ -410,24 +417,22 @@ class flash(configParser):
         if len(missing_files) > 0:
             with Pool(processes=N_CORES) as pool:
                 pool.starmap(
-                    self.h5ToParquet, tuple(zip(missing_files, missing_prq_names))
+                    self.h5ToParquet, tuple(zip(missing_files, missing_prq_names)),
                 )
 
         if len(self.failed_strings) > 0:
             print(
-                (f"Failed reading {len(self.failed_strings)}"
-                 f"files of{len(all_files)}:")
+                    f"Failed reading {len(self.failed_strings)}"
+                    f"files of{len(all_files)}:",
             )
             for failed_string in self.failed_strings:
                 print(f"\t- {failed_string}")
         if len(self.prq_names) == 0:
-            raise ValueError(
-                "No data available. Probably failed reading all h5 files"
-            )
+            raise ValueError("No data available. Probably failed reading all h5 files")
 
         print(
-            (f"Loading {len(self.prq_names)} dataframes. Failed reading "
-             f"{len(all_files)-len(self.prq_names)} files.")
+                f"Loading {len(self.prq_names)} dataframes. Failed reading "
+                f"{len(all_files)-len(self.prq_names)} files.",
         )
         self.dataframes = [dd.read_parquet(fn) for fn in self.prq_names]
         self.fillNA()

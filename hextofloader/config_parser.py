@@ -3,9 +3,9 @@ Parses the configuration files. The file must contain [general] and [channel]
 information. [path] is optional, but necessary if beamtime_id and year
 are not defined.
 """
-
 import os
 from pathlib import Path
+
 import yaml
 
 
@@ -31,7 +31,7 @@ class configParser():
 
             if not {'source'}.issubset(self.general.keys()):
                 raise ValueError('Source key is missing. Please enter flash or lab')
-            
+
             self.source = self.general['source']
 
             # Prases to locate the raw beamtime directory from config file
@@ -39,19 +39,22 @@ class configParser():
                 if 'data_raw_dir' in self.paths:
                     self.DATA_RAW_DIR = Path(self.paths['data_raw_dir'])
                 if 'data_parquet_dir' in self.paths:
-                    self.DATA_PARQUET_DIR = Path(self.paths[
-                                                    'data_parquet_dir'])
+                    self.DATA_PARQUET_DIR = Path(
+                        self.paths[
+                        'data_parquet_dir'
+                        ],
+                    )
                     if not self.DATA_PARQUET_DIR.exists():
                         os.mkdir(self.DATA_PARQUET_DIR)
-            
+
             if self.source == 'flash':
                 self.flash()
-    
+
     def flash(self):
         if not {'ubid_offset', 'daq'}.issubset(self.general.keys()):
             raise ValueError('One of the values from ubid_offset or daq is missing. \
                         These are necessary.')
-                
+
         self.UBID_OFFSET = self.general['ubid_offset']
         self.DAQ = self.general['daq']
 
@@ -63,14 +66,16 @@ class configParser():
             beamtime_id = self.general['beamtime_id']
             year = self.general['year']
             beamtime_dir = Path(
-                    f'/asap3/flash/gpfs/pg2/{year}/data/{beamtime_id}/')
+                    f'/asap3/flash/gpfs/pg2/{year}/data/{beamtime_id}/',
+            )
 
             # Folder naming convention till end of October
             self.DATA_RAW_DIR = beamtime_dir.joinpath('raw/hdf/express')
             # Use new convention if express doesn't exist
             if not self.DATA_RAW_DIR.exists():
                 self.DATA_RAW_DIR = beamtime_dir.joinpath(
-                    f'raw/hdf/{self.DAQ.upper()}')
+                    f'raw/hdf/{self.DAQ.upper()}',
+                )
 
             if self.DATA_PARQUET_DIR is None:
                 parquet_path = 'processed/parquet'

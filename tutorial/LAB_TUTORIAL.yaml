@@ -30,5 +30,5 @@ channels:
     group_name: "/SlowData/hextof/logic/kmic1/TOF_VURead"
 ---
 paths:
-  data_raw_dir: /asap3/fs-flash-o/gpfs/hextof/2022/data/11015726/raw/
-  data_parquet_dir: /asap3/fs-flash-o/gpfs/hextof/2022/data/11015726/processed/parquet/
+  data_raw_dir: raw/
+  data_parquet_dir: parquet/
