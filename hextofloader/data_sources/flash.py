@@ -45,7 +45,7 @@ class flash(sourceReader):
     def availableChannels(self) -> list:
         """Returns the channel names that are available for use,
         excluding pulseId, defined by the json file"""
-        available_channels = list(self.all_channels.keys())
+        available_channels = super().availableChannels
         available_channels.remove("pulseId")
         return available_channels
 

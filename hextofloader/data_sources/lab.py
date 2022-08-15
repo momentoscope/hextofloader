@@ -24,7 +24,13 @@ class lab(sourceReader):
     def parseH5Keys(self, h5_file, prefix=""):
         return super().parseH5Keys(h5_file, prefix)
 
-    def createDataframePerFormat(self, h5_file, format_):
+    def createDataframePerChannel(
+        self, h5_file: h5py.File, channel: str,
+    ) -> Series | DataFrame:
+        return Series(h5_file[self.all_channels[channel]["group_name"]],
+                      name=channel, index=self.electron_id).to_frame()
+    
+    def concatenateChannels(self, h5_file, format_):
         # filters for valid channels
         valid_names = [
             each_name for each_name in self.channels if each_name in self.all_channels
@@ -40,67 +46,57 @@ class lab(sourceReader):
             channels = [each_name for each_name in valid_names]
 
         if format_ == "slow":
-            electronID = np.cumsum([0, *h5_file["DLD/NumOfEvents"][:-1]])
+            self.electron_id = Series(np.cumsum([0, *h5_file["DLD/NumOfEvents"][:-1]]))
 
         elif format_ == "electron":
             if "time" in self.all_channels:
-                timeGroupName = self.all_channels["time"]["group_name"]
-                electronID = np.arange(len(h5_file[timeGroupName]))
-                print(timeGroupName + " channel was used")
+                time_group_name = self.all_channels["times"]["group_name"]
+                self.electron_id = Series(np.arange(len(h5_file[time_group_name])))
             else:
-                try:
-                    electronID = np.arange(len(h5_file["DLD/DLD/dldTime"]))
-                    print("DLD/DLD/dldTime channel was used")
-                except Exception:
-                    electronID = np.arange(len(h5_file["DLD/DLD/times"]))
-                    print("DLD/DLD/times channel was used")
+                self.electron_id = Series(np.arange(len(h5_file["DLD/DLD/times"])))
+                print("DLD/DLD/times channel was used for indexing electron groups")
 
-        fileChannelList = self.parseH5Keys(h5_file)
-        channelsNotPresent = []
-        channelsPresent = []
+        file_channel_list = self.parseH5Keys(h5_file)
+        channels_not_present = []
+        channels_present = []
         for channel in channels:
-            channelName = self.all_channels[channel]["group_name"]
-            if channelName not in fileChannelList:
-                channelsNotPresent.append(channel)
+            channel_name = self.all_channels[channel]["group_name"]
+            if channel_name not in file_channel_list:
+                channels_not_present.append(channel)
             else:
-                channelsPresent.append(channel)
-        if len(channelsNotPresent) > 0:
+                channels_present.append(channel)
+        if len(channels_not_present) > 0:
             print(
-                f"WARNING: skipped channels missing in h5 file: {[self.all_channels[channel]['group_name'] for channel in channelsNotPresent]}",
+                f"WARNING: skipped channels missing in h5 file:\
+                    {[self.all_channels[c]['group_name'] for c in channels_not_present]}",
             )
 
-        dataframes = (
-            Series(
-                h5_file[self.all_channels[channel]["group_name"]],
-                name=channel,
-                index=electronID,
-            ).to_frame()
-            for channel in channelsPresent
-        )
+        data_frames = (self.createDataframePerChannel(h5_file, channel)
+                       for channel in channels_present)
 
-        return reduce(DataFrame.combine_first, dataframes)
+        return reduce(lambda left, right: left.join(right, how="outer"), data_frames)
 
-    def readFile(self, filename):
-        with h5py.File(filename) as h5_file:
+    def createDataframePerFile(self, file_path: Path) -> Series | DataFrame:
+        with h5py.File(file_path) as h5_file:
             dataframe = concat(
                 (
-                    self.createDataframePerFormat(h5_file, format_)
+                    self.concatenateChannels(h5_file, format_)
                     for format_ in ["slow", "electron"]
                 ),
                 axis=1,
             )
         return dataframe
 
-    def h5_to_parquet(self, h5, prq):
+    def h5ToParquet(self, h5_path: Path, prq_path: str) -> None:
         try:
             (
-                self.readFile(h5)
+                self.createDataframePerFile(h5_path)
                 .reset_index()
-                .to_parquet(prq, compression=None, index=False)
+                .to_parquet(prq_path, compression=None, index=False)
             )
         except ValueError as e:
-            self.failed_str.append(f"{prq}: {e}")
-            self.prq_names.remove(prq)
+            self.failed_str.append(f"{prq_path}: {e}")
+            self.prq_names.remove(prq_path)
 
     def fillNA(self):
         """Routine to fill the NaN values with intrafile forward filling."""
@@ -165,7 +161,8 @@ class lab(sourceReader):
         if len(missing_files) > 0:
             with Pool(processes=N_CORES) as pool:
                 pool.starmap(
-                    self.h5_to_parquet, tuple(zip(missing_files, missing_prq_names)),
+                    self.h5ToParquet,
+                    tuple(zip(missing_files, missing_prq_names)),
                 )
 
         if len(self.failed_str) > 0:
